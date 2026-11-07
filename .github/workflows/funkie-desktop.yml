@@ -1,0 +1,121 @@
+name: Funkie desktop build
+
+# Fork-only: packages the `funkie` branch as an unsigned Apple Silicon DMG and
+# publishes it to the rolling `funkie-latest` release on this fork.
+
+on:
+  push:
+    branches: [funkie]
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: write
+
+concurrency:
+  group: funkie-desktop
+  cancel-in-progress: true
+
+jobs:
+  quiet-upstream-workflows:
+    name: Disable upstream workflows on this fork
+    if: github.repository != 'pingdotgg/t3code'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # Upstream's CI targets maintainer-only runners and would sit queued on
+      # every sync push. Re-run each build so newly added upstream workflows
+      # get disabled too.
+      - name: Disable everything except this workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api "repos/${GITHUB_REPOSITORY}/actions/workflows" --paginate \
+            --jq '.workflows[] | select(.state == "active") | select(.path != ".github/workflows/funkie-desktop.yml") | .id' |
+          while read -r id; do
+            gh api -X PUT "repos/${GITHUB_REPOSITORY}/actions/workflows/${id}/disable" >/dev/null
+            echo "Disabled workflow ${id}"
+          done
+
+  build:
+    name: Build macOS arm64 DMG
+    if: github.repository != 'pingdotgg/t3code'
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      # Skip the vendored .repos tree, as upstream does; its orphaned gitlinks
+      # break actions/checkout's submodule cleanup.
+      - name: Checkout
+        env:
+          CHECKOUT_REF: ${{ github.sha }}
+          GIT_TERMINAL_PROMPT: "0"
+        run: |
+          set -euo pipefail
+          git init .
+          git remote add origin "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git"
+          git fetch --no-tags --depth=1 origin "$CHECKOUT_REF"
+          git sparse-checkout set --no-cone '/*' '!/.repos/'
+          git checkout --detach FETCH_HEAD
+
+      - name: Setup Vite+
+        uses: voidzero-dev/setup-vp@250f29ce396baf5e8f24498e17c0dfdebabc26eb # v1
+        with:
+          node-version-file: package.json
+          cache: true
+          run-install: false
+
+      - name: Install dependencies
+        run: vp install --filter=t3... --filter=@t3tools/web... --filter=@t3tools/desktop... --filter=@t3tools/scripts...
+
+      # A `-preview.` version ships without an update feed, so the app never
+      # tries to replace itself with an official upstream release.
+      - name: Set version and public configuration
+        id: version
+        run: |
+          set -euo pipefail
+          base_version="$(node -p "require('./apps/desktop/package.json').version")"
+          version="${base_version}-preview.$(date -u +%Y%m%d).${GITHUB_RUN_NUMBER}"
+          node scripts/update-release-package-versions.ts "$version"
+          # Public T3 Connect identifiers (Clerk publishable key, relay URL).
+          cp .env.example .env
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Build DMG
+        env:
+          T3CODE_TELEMETRY_CHANNEL: dev
+        run: |
+          vp run dist:desktop:artifact \
+            --platform mac \
+            --target dmg \
+            --arch arm64 \
+            --build-version "${{ steps.version.outputs.version }}" \
+            --verbose
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: t3code-funkie-${{ steps.version.outputs.version }}-arm64
+          path: release/*.dmg
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Publish to the funkie-latest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          tag=funkie-latest
+          notes="Unsigned build of \`funkie\` at ${GITHUB_SHA::12} (${VERSION}).
+
+          First launch: drag T3 Code to Applications, then run
+          \`xattr -dr com.apple.quarantine \"/Applications/T3 Code.app\"\`
+          so macOS lets the unsigned app open."
+          # Recreate the release so its tag moves to this commit.
+          gh release delete "$tag" --cleanup-tag --yes -R "$GITHUB_REPOSITORY" || true
+          gh release create "$tag" release/*.dmg -R "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "T3 Code (funkie) ${VERSION}" \
+            --notes "$notes" \
+            --prerelease
