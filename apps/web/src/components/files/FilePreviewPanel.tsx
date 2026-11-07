@@ -1501,7 +1501,11 @@ export default function FilePreviewPanel({
               </Suspense>
             ) : renderPen ? (
               <Suspense fallback={<FileSurfaceLoading />}>
-                <PenFilePreview key={relativePath} text={file.data.contents} />
+                <PenFilePreview
+                  key={relativePath}
+                  text={file.data.contents}
+                  onRefresh={file.refresh}
+                />
               </Suspense>
             ) : isMarkdown && renderMarkdown ? (
               <RenderedMarkdownSurface
