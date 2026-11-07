@@ -68,13 +68,19 @@ jobs:
       - name: Install dependencies
         run: vp install --filter=t3... --filter=@t3tools/web... --filter=@t3tools/desktop... --filter=@t3tools/scripts...
 
+      # Upstream stamps the release version at build time, so the tag's
+      # package.json lags it. The sync task records the merged release tag.
       # A `-preview.` version ships without an update feed, so the app never
       # tries to replace itself with an official upstream release.
       - name: Set version and public configuration
         id: version
         run: |
           set -euo pipefail
-          base_version="$(node -p "require('./apps/desktop/package.json').version")"
+          base_version="$(tr -d '[:space:]' < .github/funkie-upstream-version)"
+          if [[ ! "$base_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Invalid .github/funkie-upstream-version: '$base_version'" >&2
+            exit 1
+          fi
           version="${base_version}-preview.$(date -u +%Y%m%d).${GITHUB_RUN_NUMBER}"
           node scripts/update-release-package-versions.ts "$version"
           # Public T3 Connect identifiers (Clerk publishable key, relay URL).
