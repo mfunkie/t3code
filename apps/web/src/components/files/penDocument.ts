@@ -1,6 +1,9 @@
 // Reader for pen.dev `.pen` design files: https://docs.pen.dev/for-developers/the-pen-format
 // Accepts both the current schema (2.2x) and the 2.8-era shape (`icon_font`, `line`, object strokes).
 
+import { msg } from "gt-react";
+import { m } from "~/i18n/messages";
+
 export type PenTheme = Readonly<Record<string, string>>;
 
 export interface PenNode {
@@ -220,10 +223,10 @@ export function parsePenDocument(text: string): PenParseResult {
   try {
     raw = JSON.parse(stripJsonComments(text));
   } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : "Invalid JSON" };
+    return { ok: false, error: error instanceof Error ? error.message : m(msg("Invalid JSON")) };
   }
   if (!isRecord(raw) || !Array.isArray(raw.children)) {
-    return { ok: false, error: "Missing the top-level `children` array." };
+    return { ok: false, error: m(msg("Missing the top-level `children` array.")) };
   }
   const index = new Map<string, PenNode>();
   indexNodes(raw.children, index);

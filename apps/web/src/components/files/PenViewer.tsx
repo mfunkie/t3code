@@ -1,4 +1,5 @@
 import { useEffectEvent, useLayoutEffect, useRef, useState, type PointerEvent } from "react";
+import { T, useGT } from "gt-react";
 import { MinusIcon, PlusIcon, ScanIcon } from "lucide-react";
 
 import { Select, SelectItem, SelectPopup, SelectTrigger } from "~/components/ui/select";
@@ -95,6 +96,7 @@ function ThemeAxisSelect(props: {
   readonly forced: string | undefined;
   readonly onChange: (value: string | undefined) => void;
 }) {
+  const gt = useGT();
   return (
     <Select
       value={props.forced ?? AS_DESIGNED}
@@ -102,13 +104,19 @@ function ThemeAxisSelect(props: {
         if (value !== null) props.onChange(value === AS_DESIGNED ? undefined : value);
       }}
     >
-      <SelectTrigger size="xs" className="w-auto min-w-0" aria-label={`${props.axis} theme`}>
+      <SelectTrigger
+        size="xs"
+        className="w-auto min-w-0"
+        aria-label={gt("{axis} theme", { axis: props.axis })}
+      >
         <span className="truncate">
-          {props.axis}: {props.forced ?? "As designed"}
+          {props.axis}: {props.forced ?? gt("As designed")}
         </span>
       </SelectTrigger>
       <SelectPopup alignItemWithTrigger={false}>
-        <SelectItem value={AS_DESIGNED}>As designed</SelectItem>
+        <SelectItem value={AS_DESIGNED}>
+          <T>As designed</T>
+        </SelectItem>
         {props.values.map((value) => (
           <SelectItem key={value} value={value}>
             {value}
@@ -121,6 +129,7 @@ function ThemeAxisSelect(props: {
 
 function PenCanvas(props: { readonly document: PenDocument }) {
   const { document } = props;
+  const gt = useGT();
   const viewportRef = useRef<HTMLDivElement>(null);
   const worldRef = useRef<HTMLDivElement>(null);
   const fittedRef = useRef(false);
@@ -266,8 +275,12 @@ function PenCanvas(props: { readonly document: PenDocument }) {
               fitTo(worldRect(element, world, view.scale));
             }}
           >
-            <SelectTrigger size="xs" className="w-auto min-w-0 max-w-48" aria-label="Jump to frame">
-              <span className="truncate">Frames ({frames.length})</span>
+            <SelectTrigger
+              size="xs"
+              className="w-auto min-w-0 max-w-48"
+              aria-label={gt("Jump to frame")}
+            >
+              <span className="truncate">{gt("Frames ({count})", { count: frames.length })}</span>
             </SelectTrigger>
             <SelectPopup alignItemWithTrigger={false} className="max-h-80">
               {frames.map((frame) => (
@@ -300,7 +313,7 @@ function PenCanvas(props: { readonly document: PenDocument }) {
           {stats.nodes.toLocaleString()} layers
         </span>
         <FileSurfaceAction
-          label="Zoom out"
+          label={gt("Zoom out")}
           disabled={view.scale <= MIN_ZOOM}
           onPress={() => zoomBy(1 / 1.25)}
         >
@@ -308,14 +321,14 @@ function PenCanvas(props: { readonly document: PenDocument }) {
         </FileSurfaceAction>
         <span className="min-w-11 text-center tabular-nums">{Math.round(view.scale * 100)}%</span>
         <FileSurfaceAction
-          label="Zoom in"
+          label={gt("Zoom in")}
           disabled={view.scale >= MAX_ZOOM}
           onPress={() => zoomBy(1.25)}
         >
           <PlusIcon className="size-3.5" />
         </FileSurfaceAction>
         <FileSurfaceAction
-          label="Fit design"
+          label={gt("Fit design")}
           onPress={() => {
             movedRef.current = false;
             fitAll();
@@ -340,7 +353,7 @@ function PenCanvas(props: { readonly document: PenDocument }) {
       <div
         ref={viewportRef}
         role="img"
-        aria-label="Rendered .pen design"
+        aria-label={gt("Rendered .pen design")}
         className="relative min-h-0 flex-1 cursor-grab touch-none overflow-hidden bg-muted/40 select-none active:cursor-grabbing"
         style={{
           backgroundImage:
@@ -385,11 +398,14 @@ function PenCanvas(props: { readonly document: PenDocument }) {
 }
 
 export default function PenViewer(props: { readonly text: string }) {
+  const gt = useGT();
   const parsed = parsePenDocument(props.text);
   if (!parsed.ok) {
     return (
       <FileSurfaceFailure
-        message={`This .pen file could not be read (${parsed.error}). Show the source to inspect it.`}
+        message={gt("This .pen file could not be read ({error}). Show the source to inspect it.", {
+          error: parsed.error,
+        })}
       />
     );
   }
