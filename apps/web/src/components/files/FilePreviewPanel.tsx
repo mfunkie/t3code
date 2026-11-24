@@ -127,7 +127,6 @@ import { projectFileCacheKey } from "./fileContentRevision";
 import {
   filePreviewReadErrorMessage,
   isMarkdownPreviewFile,
-  isPenPreviewFile,
   resolveFilePreviewPath,
   shouldShowFileExplorer,
   workspaceAssetResource,
@@ -170,9 +169,6 @@ interface FilePreviewPanelProps {
 
 const MermaidFilePreview = lazy(() =>
   import("./MermaidFilePreview").then((module) => ({ default: module.MermaidFilePreview })),
-);
-const PenFilePreview = lazy(() =>
-  import("./PenFilePreview").then((module) => ({ default: module.PenFilePreview })),
 );
 
 const FILE_EXPLORER_STORAGE_KEY = "t3code.fileExplorerOpen";
@@ -1196,12 +1192,10 @@ function RenderedMarkdownSurface({
 }
 
 function renderedToggleLabel(
-  mode: "markdown" | "mermaid" | "pen" | "html" | "table",
+  mode: "markdown" | "mermaid" | "html" | "table",
   rendered: boolean,
   resolve: MessageResolver,
 ): string {
-  if (mode === "pen")
-    return rendered ? resolve(msg("Show .pen source")) : resolve(msg("Show rendered design"));
   if (mode === "mermaid")
     return rendered ? resolve(msg("Show Mermaid source")) : resolve(msg("Show rendered diagram"));
   if (mode === "markdown")
@@ -1341,12 +1335,6 @@ export default function FilePreviewPanel({
     true,
     Schema.Boolean,
   );
-  const isPen = previewPath !== null && isPenPreviewFile(previewPath);
-  const [renderPenPreferred, setRenderPenPreferred] = useLocalStorage(
-    "t3code.renderPen",
-    true,
-    Schema.Boolean,
-  );
   const tableDelimiter =
     previewPath && attachment === undefined ? filePreviewDelimiter({ name: previewPath }) : null;
   const revealHandled =
@@ -1354,21 +1342,17 @@ export default function FilePreviewPanel({
     (handledReveal?.path === relativePath && handledReveal.requestId === revealRequestId);
   const renderMarkdown = isMarkdown && renderMarkdownPreferred && revealHandled;
   const renderMermaid = isMermaid && renderMermaidPreferred && revealHandled;
-  // A truncated read is not valid JSON, so oversized designs open as source.
-  const renderPen = isPen && renderPenPreferred && revealHandled && !file.data?.truncated;
   const renderBrowserFile = isPdf || (isHtml && renderBrowserFilePreferred && revealHandled);
   const renderTable = tableDelimiter !== null && renderTablePreferred && revealHandled;
   const renderedMode = isMermaid
     ? ("mermaid" as const)
-    : isPen
-      ? ("pen" as const)
-      : isMarkdown
-        ? ("markdown" as const)
-        : tableDelimiter
-          ? ("table" as const)
-          : isHtml
-            ? ("html" as const)
-            : null;
+    : isMarkdown
+      ? ("markdown" as const)
+      : tableDelimiter
+        ? ("table" as const)
+        : isHtml
+          ? ("html" as const)
+          : null;
   const canToggleRendered =
     previewPath !== null && attachment === undefined && renderedMode !== null;
   const showsRawText =
@@ -1376,7 +1360,6 @@ export default function FilePreviewPanel({
     file.data !== null &&
     !(isMarkdown && renderMarkdown) &&
     !renderMermaid &&
-    !renderPen &&
     !(tableDelimiter && renderTable) &&
     !renderBrowserFile &&
     !isDocument;
@@ -1431,22 +1414,18 @@ export default function FilePreviewPanel({
   };
   const rendered = isMermaid
     ? renderMermaid
-    : isPen
-      ? renderPen
-      : isMarkdown
-        ? renderMarkdown
-        : tableDelimiter
-          ? renderTable
-          : renderBrowserFile;
+    : isMarkdown
+      ? renderMarkdown
+      : tableDelimiter
+        ? renderTable
+        : renderBrowserFile;
   const setRenderedPreferred = isMermaid
     ? setRenderMermaidPreferred
-    : isPen
-      ? setRenderPenPreferred
-      : isMarkdown
-        ? setRenderMarkdownPreferred
-        : tableDelimiter
-          ? setRenderTablePreferred
-          : setRenderBrowserFilePreferred;
+    : isMarkdown
+      ? setRenderMarkdownPreferred
+      : tableDelimiter
+        ? setRenderTablePreferred
+        : setRenderBrowserFilePreferred;
   const canOpenInBrowser =
     canOperatePreview &&
     previewPath !== null &&
@@ -1804,14 +1783,6 @@ export default function FilePreviewPanel({
             renderMermaid ? (
               <Suspense fallback={<FileSurfaceLoading />}>
                 <MermaidFilePreview text={file.data.contents} />
-              </Suspense>
-            ) : renderPen ? (
-              <Suspense fallback={<FileSurfaceLoading />}>
-                <PenFilePreview
-                  key={relativePath}
-                  text={file.data.contents}
-                  onRefresh={file.refresh}
-                />
               </Suspense>
             ) : isMarkdown && renderMarkdown ? (
               <RenderedMarkdownSurface
