@@ -13,9 +13,6 @@ export function resolveFilePreviewPath(path: string | null, cwd: string): string
 export const isMarkdownPreviewFile = (path: string): boolean =>
   /\.(?:md|mdx|markdown|mdown|mkd)$/i.test(path);
 
-/** pen.dev design files: https://docs.pen.dev/core-concepts/pen-files */
-export const isPenPreviewFile = (path: string): boolean => /\.pen$/i.test(path);
-
 export function filePreviewReadErrorMessage(
   error: ProjectReadFileError,
   resolve: MessageResolver = m,
